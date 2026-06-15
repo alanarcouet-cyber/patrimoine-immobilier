@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd C:\\Claude_Code && git pull",
+            "shell": "powershell",
+            "statusMessage": "Synchronisation avec GitHub...",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
