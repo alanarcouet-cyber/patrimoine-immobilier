@@ -75,6 +75,20 @@ export default function BienDetail() {
     )
   }
 
+  const [contratActif, setContratActif] = useState<any>(null)
+
+  useEffect(() => { if (bien) fetchContrat() }, [bien])
+
+  async function fetchContrat() {
+    const { data } = await supabase
+      .from('contrats')
+      .select('id, statut, loyer_hc, charges, locataires(nom, prenom)')
+      .eq('bien_id', bien!.id)
+      .eq('statut', 'actif')
+      .maybeSingle()
+    setContratActif(data)
+  }
+
   if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#2563eb" />
   if (!bien) return <View style={styles.container}><Text style={styles.notFound}>Bien introuvable</Text></View>
 
@@ -115,6 +129,32 @@ export default function BienDetail() {
           </View>
         </View>
       </View>
+
+      {/* Locataire & Contrat */}
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <Text style={styles.sectionTitle}>Locataire & Contrat</Text>
+        </View>
+        {contratActif ? (
+          <TouchableOpacity onPress={() => router.push(`/(app)/contrat/${contratActif.id}`)}>
+            <Text style={styles.locataireNom}>
+              {contratActif.locataires?.prenom} {contratActif.locataires?.nom}
+            </Text>
+            <Text style={styles.locataireLoyer}>
+              {(contratActif.loyer_hc + contratActif.charges).toFixed(0)} € / mois → Voir le contrat
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => router.push(`/(app)/contrat/nouveau?bien_id=${bien.id}`)}>
+            <Text style={styles.addContratLink}>+ Créer un contrat de location</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Entretien rapide */}
+      <TouchableOpacity style={styles.shortcutBtn} onPress={() => router.push(`/(app)/intervention/nouveau?bien_id=${bien.id}`)}>
+        <Text style={styles.shortcutBtnTxt}>🔧  Ajouter une intervention</Text>
+      </TouchableOpacity>
 
       {bien.description ? (
         <View style={styles.card}>
@@ -174,6 +214,11 @@ const styles = StyleSheet.create({
   stat: { alignItems: 'center' },
   statValue: { fontSize: 24, fontWeight: '700', color: '#1e293b' },
   statLabel: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
+  locataireNom: { fontSize: 16, fontWeight: '600', color: '#1e293b' },
+  locataireLoyer: { fontSize: 13, color: '#2563eb', marginTop: 2 },
+  addContratLink: { fontSize: 14, color: '#2563eb', fontWeight: '600' },
+  shortcutBtn: { marginHorizontal: 12, marginTop: 8, backgroundColor: '#f8fafc', borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
+  shortcutBtnTxt: { color: '#475569', fontWeight: '600', fontSize: 14 },
   actions: { flexDirection: 'row', gap: 10, margin: 12, marginBottom: 0 },
   btnEdit: {
     flex: 1, backgroundColor: '#2563eb', borderRadius: 10,
