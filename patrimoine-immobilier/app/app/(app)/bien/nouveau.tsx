@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../src/lib/supabase'
+import { useAuth } from '../../../src/contexts/AuthContext'
 import { TypeLocation, StatutBien, ClasseDPE } from '../../../src/types'
 
 const TYPES: { label: string; value: TypeLocation }[] = [
@@ -22,6 +23,7 @@ const DPE: ClasseDPE[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 export default function NouveauBien() {
   const { id } = useLocalSearchParams<{ id?: string }>()
   const isEditing = !!id
+  const { adminId } = useAuth()
 
   const [loading, setLoading] = useState(false)
   const [loadingData, setLoadingData] = useState(isEditing)
@@ -81,8 +83,7 @@ export default function NouveauBien() {
     if (isEditing) {
       ;({ error } = await supabase.from('biens').update(payload).eq('id', id))
     } else {
-      const { data: { user } } = await supabase.auth.getUser()
-      ;({ error } = await supabase.from('biens').insert({ ...payload, bailleur_id: user!.id }))
+      ;({ error } = await supabase.from('biens').insert({ ...payload, bailleur_id: adminId }))
     }
 
     setLoading(false)
