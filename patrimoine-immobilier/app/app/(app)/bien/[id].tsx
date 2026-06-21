@@ -18,6 +18,7 @@ export default function BienDetail() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const [bien, setBien] = useState<Bien | null>(null)
   const [loading, setLoading] = useState(true)
+  const [duplicating, setDuplicating] = useState(false)
 
   useEffect(() => { if (id) fetchBien() }, [id])
 
@@ -28,25 +29,59 @@ export default function BienDetail() {
   }
 
   async function handleDelete() {
-    Alert.alert('Supprimer', `Supprimer "${bien?.nom}" ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer', style: 'destructive',
-        onPress: async () => {
-          await supabase.from('biens').delete().eq('id', id)
-          router.back()
+    Alert.alert(
+      'Supprimer le bien',
+      `Voulez-vous vraiment supprimer "${bien?.nom}" ? Cette action est irréversible.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer', style: 'destructive',
+          onPress: async () => {
+            const { error } = await supabase.from('biens').delete().eq('id', id)
+            if (error) Alert.alert('Erreur', 'Impossible de supprimer ce bien.')
+            else router.back()
+          }
         }
-      }
-    ])
+      ]
+    )
+  }
+
+  async function handleDuplicate() {
+    if (!bien) return
+    Alert.alert(
+      'Dupliquer le bien',
+      `Créer une copie de "${bien.nom}" ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Dupliquer',
+          onPress: async () => {
+            setDuplicating(true)
+            const { id: _id, created_at: _ca, updated_at: _ua, ...copie } = bien as any
+            const { data, error } = await supabase
+              .from('biens')
+              .insert({ ...copie, nom: `${bien.nom} (copie)`, statut: 'libre' })
+              .select()
+              .single()
+            setDuplicating(false)
+            if (error) {
+              Alert.alert('Erreur', 'Impossible de dupliquer ce bien.')
+            } else {
+              router.replace(`/(app)/bien/${data.id}`)
+            }
+          }
+        }
+      ]
+    )
   }
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#2563eb" />
-  if (!bien) return <View style={styles.container}><Text>Bien introuvable</Text></View>
+  if (!bien) return <View style={styles.container}><Text style={styles.notFound}>Bien introuvable</Text></View>
 
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.nom}>{bien.nom}</Text>
           <Text style={styles.type}>{TYPE_LABELS[bien.type_location]}</Text>
         </View>
@@ -81,42 +116,78 @@ export default function BienDetail() {
         </View>
       </View>
 
-      {bien.description && (
+      {bien.description ? (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Description</Text>
           <Text style={styles.value}>{bien.description}</Text>
         </View>
-      )}
+      ) : null}
 
+      {/* Actions */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.editButton} onPress={() => router.push(`/(app)/bien/nouveau?id=${id}`)}>
-          <Text style={styles.editButtonText}>Modifier</Text>
+        <TouchableOpacity
+          style={styles.btnEdit}
+          onPress={() => router.push(`/(app)/bien/nouveau?id=${id}`)}
+        >
+          <Text style={styles.btnEditText}>✏️  Modifier</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-          <Text style={styles.deleteButtonText}>Supprimer</Text>
+
+        <TouchableOpacity
+          style={styles.btnDuplicate}
+          onPress={handleDuplicate}
+          disabled={duplicating}
+        >
+          <Text style={styles.btnDuplicateText}>
+            {duplicating ? 'Duplication...' : '⧉  Dupliquer'}
+          </Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity style={styles.btnDelete} onPress={handleDelete}>
+        <Text style={styles.btnDeleteText}>🗑  Supprimer ce bien</Text>
+      </TouchableOpacity>
     </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  nom: { fontSize: 22, fontWeight: '700', color: '#1e293b', flex: 1 },
+  notFound: { padding: 24, textAlign: 'center', color: '#64748b' },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    padding: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
+  },
+  nom: { fontSize: 22, fontWeight: '700', color: '#1e293b' },
   type: { fontSize: 13, color: '#64748b', marginTop: 2 },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginLeft: 12 },
   badgeText: { fontSize: 13, fontWeight: '600' },
-  card: { backgroundColor: '#fff', margin: 12, marginBottom: 0, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  sectionTitle: { fontSize: 12, fontWeight: '700', color: '#2563eb', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  card: {
+    backgroundColor: '#fff', margin: 12, marginBottom: 0, borderRadius: 12, padding: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 12, fontWeight: '700', color: '#2563eb',
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8,
+  },
   value: { fontSize: 15, color: '#1e293b', marginBottom: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-around' },
   stat: { alignItems: 'center' },
   statValue: { fontSize: 24, fontWeight: '700', color: '#1e293b' },
   statLabel: { fontSize: 12, color: '#94a3b8', marginTop: 2 },
-  actions: { flexDirection: 'row', gap: 12, padding: 16, marginTop: 8 },
-  editButton: { flex: 1, backgroundColor: '#2563eb', borderRadius: 10, padding: 14, alignItems: 'center' },
-  editButtonText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  deleteButton: { flex: 1, backgroundColor: '#fee2e2', borderRadius: 10, padding: 14, alignItems: 'center' },
-  deleteButtonText: { color: '#ef4444', fontWeight: '600', fontSize: 15 },
+  actions: { flexDirection: 'row', gap: 10, margin: 12, marginBottom: 0 },
+  btnEdit: {
+    flex: 1, backgroundColor: '#2563eb', borderRadius: 10,
+    padding: 14, alignItems: 'center',
+  },
+  btnEditText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  btnDuplicate: {
+    flex: 1, backgroundColor: '#f1f5f9', borderRadius: 10,
+    padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#e2e8f0',
+  },
+  btnDuplicateText: { color: '#1e293b', fontWeight: '600', fontSize: 15 },
+  btnDelete: {
+    margin: 12, marginTop: 8, backgroundColor: '#fff', borderRadius: 10,
+    padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#fca5a5',
+  },
+  btnDeleteText: { color: '#ef4444', fontWeight: '600', fontSize: 15 },
 })

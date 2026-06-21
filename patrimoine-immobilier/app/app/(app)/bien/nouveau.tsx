@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native'
-import { router } from 'expo-router'
+import { useState, useEffect } from 'react'
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native'
+import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../src/lib/supabase'
 import { TypeLocation, StatutBien, ClasseDPE } from '../../../src/types'
 
@@ -20,6 +20,11 @@ const STATUTS: { label: string; value: StatutBien }[] = [
 const DPE: ClasseDPE[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 
 export default function NouveauBien() {
+  const { id } = useLocalSearchParams<{ id?: string }>()
+  const isEditing = !!id
+
+  const [loading, setLoading] = useState(false)
+  const [loadingData, setLoadingData] = useState(isEditing)
   const [nom, setNom] = useState('')
   const [adresse, setAdresse] = useState('')
   const [codePostal, setCodePostal] = useState('')
@@ -30,7 +35,27 @@ export default function NouveauBien() {
   const [nbPieces, setNbPieces] = useState('')
   const [dpe, setDpe] = useState<ClasseDPE | ''>('')
   const [description, setDescription] = useState('')
-  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (isEditing) fetchBien()
+  }, [id])
+
+  async function fetchBien() {
+    const { data } = await supabase.from('biens').select('*').eq('id', id).single()
+    if (data) {
+      setNom(data.nom)
+      setAdresse(data.adresse)
+      setCodePostal(data.code_postal)
+      setVille(data.ville)
+      setTypeLocation(data.type_location)
+      setStatut(data.statut)
+      setSurface(data.surface_m2?.toString() ?? '')
+      setNbPieces(data.nb_pieces?.toString() ?? '')
+      setDpe(data.classe_dpe ?? '')
+      setDescription(data.description ?? '')
+    }
+    setLoadingData(false)
+  }
 
   async function handleSave() {
     if (!nom || !adresse || !codePostal || !ville) {
@@ -38,8 +63,8 @@ export default function NouveauBien() {
       return
     }
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('biens').insert({
+
+    const payload = {
       nom,
       adresse,
       code_postal: codePostal,
@@ -50,8 +75,16 @@ export default function NouveauBien() {
       nb_pieces: nbPieces ? parseInt(nbPieces) : null,
       classe_dpe: dpe || null,
       description: description || null,
-      bailleur_id: user!.id,
-    })
+    }
+
+    let error
+    if (isEditing) {
+      ;({ error } = await supabase.from('biens').update(payload).eq('id', id))
+    } else {
+      const { data: { user } } = await supabase.auth.getUser()
+      ;({ error } = await supabase.from('biens').insert({ ...payload, bailleur_id: user!.id }))
+    }
+
     setLoading(false)
     if (error) {
       Alert.alert('Erreur', error.message)
@@ -59,6 +92,8 @@ export default function NouveauBien() {
       router.back()
     }
   }
+
+  if (loadingData) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#2563eb" />
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -84,11 +119,7 @@ export default function NouveauBien() {
       <Text style={styles.section}>Type de location</Text>
       <View style={styles.chips}>
         {TYPES.map(t => (
-          <TouchableOpacity
-            key={t.value}
-            style={[styles.chip, typeLocation === t.value && styles.chipActive]}
-            onPress={() => setTypeLocation(t.value)}
-          >
+          <TouchableOpacity key={t.value} style={[styles.chip, typeLocation === t.value && styles.chipActive]} onPress={() => setTypeLocation(t.value)}>
             <Text style={[styles.chipText, typeLocation === t.value && styles.chipTextActive]}>{t.label}</Text>
           </TouchableOpacity>
         ))}
@@ -97,11 +128,7 @@ export default function NouveauBien() {
       <Text style={styles.section}>Statut</Text>
       <View style={styles.chips}>
         {STATUTS.map(s => (
-          <TouchableOpacity
-            key={s.value}
-            style={[styles.chip, statut === s.value && styles.chipActive]}
-            onPress={() => setStatut(s.value)}
-          >
+          <TouchableOpacity key={s.value} style={[styles.chip, statut === s.value && styles.chipActive]} onPress={() => setStatut(s.value)}>
             <Text style={[styles.chipText, statut === s.value && styles.chipTextActive]}>{s.label}</Text>
           </TouchableOpacity>
         ))}
@@ -122,28 +149,17 @@ export default function NouveauBien() {
       <Text style={styles.label}>Classe DPE</Text>
       <View style={styles.chips}>
         {DPE.map(d => (
-          <TouchableOpacity
-            key={d}
-            style={[styles.chip, dpe === d && styles.chipActive]}
-            onPress={() => setDpe(dpe === d ? '' : d)}
-          >
+          <TouchableOpacity key={d} style={[styles.chip, dpe === d && styles.chipActive]} onPress={() => setDpe(dpe === d ? '' : d)}>
             <Text style={[styles.chipText, dpe === d && styles.chipTextActive]}>{d}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       <Text style={styles.label}>Description</Text>
-      <TextInput
-        style={[styles.input, styles.textarea]}
-        value={description}
-        onChangeText={setDescription}
-        placeholder="Notes sur le bien..."
-        multiline
-        numberOfLines={4}
-      />
+      <TextInput style={[styles.input, styles.textarea]} value={description} onChangeText={setDescription} placeholder="Notes sur le bien..." multiline numberOfLines={4} />
 
       <TouchableOpacity style={styles.button} onPress={handleSave} disabled={loading}>
-        <Text style={styles.buttonText}>{loading ? 'Enregistrement...' : 'Enregistrer le bien'}</Text>
+        <Text style={styles.buttonText}>{loading ? 'Enregistrement...' : isEditing ? 'Enregistrer les modifications' : 'Ajouter le bien'}</Text>
       </TouchableOpacity>
     </ScrollView>
   )
@@ -154,25 +170,16 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
   section: { fontSize: 14, fontWeight: '700', color: '#2563eb', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 20, marginBottom: 10 },
   label: { fontSize: 13, color: '#64748b', marginBottom: 4, marginTop: 8 },
-  input: {
-    backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0',
-    borderRadius: 8, padding: 12, fontSize: 15, color: '#1e293b',
-  },
+  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 15, color: '#1e293b' },
   textarea: { height: 100, textAlignVertical: 'top' },
   row: { flexDirection: 'row' },
   flex1: { flex: 1 },
   flex2: { flex: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
-  chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
-    backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0',
-  },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
   chipActive: { backgroundColor: '#2563eb', borderColor: '#2563eb' },
   chipText: { fontSize: 14, color: '#64748b' },
   chipTextActive: { color: '#fff', fontWeight: '600' },
-  button: {
-    backgroundColor: '#2563eb', borderRadius: 10, padding: 16,
-    alignItems: 'center', marginTop: 24,
-  },
+  button: { backgroundColor: '#2563eb', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 24 },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 })
