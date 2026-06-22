@@ -89,6 +89,10 @@ export default function NouvelleIntervention() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <Text style={styles.backTxt}>‹  Retour</Text>
+      </TouchableOpacity>
+
       <Text style={styles.section}>Bien concerné *</Text>
       <View style={styles.select}>
         {biens.map(b => (
@@ -171,6 +175,8 @@ const styles = StyleSheet.create({
   selectItemActive: { backgroundColor: '#dbeafe', borderColor: '#2563eb' },
   selectTxt: { fontSize: 13, color: '#64748b' },
   selectTxtActive: { color: '#1d4ed8', fontWeight: '600' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  backTxt: { fontSize: 16, color: '#2563eb', fontWeight: '500' },
   button: { backgroundColor: '#2563eb', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 24 },
   buttonTxt: { color: '#fff', fontSize: 16, fontWeight: '600' },
 })
