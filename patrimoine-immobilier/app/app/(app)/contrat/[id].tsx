@@ -38,11 +38,12 @@ export default function ContratDetail() {
   useEffect(() => { if (id) fetchAll() }, [id])
 
   async function fetchAll() {
-    const [{ data: c }, { data: l }] = await Promise.all([
+    const [{ data: c }, { data: l }, { data: cl }] = await Promise.all([
       supabase.from('contrats').select('*, biens(nom, ville), locataires(nom, prenom, email, telephone)').eq('id', id).single(),
       supabase.from('loyers').select('*').eq('contrat_id', id).order('mois', { ascending: false }),
+      supabase.from('contrat_locataires').select('locataire_id, is_principal, locataires(nom, prenom, email, telephone)').eq('contrat_id', id),
     ])
-    setContrat(c)
+    setContrat(c ? { ...c, coLocataires: cl ?? [] } : null)
     setLoyers(l ?? [])
     setLoading(false)
   }
@@ -107,16 +108,22 @@ export default function ContratDetail() {
         </View>
       </View>
 
-      {contrat.locataires && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Locataire</Text>
-          <TouchableOpacity onPress={() => router.push(`/(app)/locataire/${contrat.locataire_id}`)}>
-            <Text style={styles.link}>{contrat.locataires.prenom} {contrat.locataires.nom} →</Text>
-          </TouchableOpacity>
-          {contrat.locataires.email && <Text style={styles.meta}>✉️  {contrat.locataires.email}</Text>}
-          {contrat.locataires.telephone && <Text style={styles.meta}>📞  {contrat.locataires.telephone}</Text>}
-        </View>
-      )}
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>
+          Locataire{contrat.coLocataires?.length > 1 ? 's' : ''}
+        </Text>
+        {(contrat.coLocataires?.length > 0 ? contrat.coLocataires : contrat.locataires ? [{ locataire_id: contrat.locataire_id, is_principal: true, locataires: contrat.locataires }] : []).map((cl: any, idx: number) => (
+          <View key={cl.locataire_id ?? idx} style={idx > 0 ? styles.coLocRow : undefined}>
+            <TouchableOpacity onPress={() => router.push(`/(app)/locataire/${cl.locataire_id}`)}>
+              <Text style={styles.link}>
+                {cl.is_principal ? '★ ' : ''}{cl.locataires?.prenom} {cl.locataires?.nom} →
+              </Text>
+            </TouchableOpacity>
+            {cl.locataires?.email && <Text style={styles.meta}>✉️  {cl.locataires.email}</Text>}
+            {cl.locataires?.telephone && <Text style={styles.meta}>📞  {cl.locataires.telephone}</Text>}
+          </View>
+        ))}
+      </View>
 
       <View style={styles.card}>
         <View style={styles.cardHeader}>
@@ -164,6 +171,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 20, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   bienNom: { fontSize: 20, fontWeight: '700', color: '#1e293b' },
   locataireName: { fontSize: 14, color: '#64748b', marginTop: 4 },
+  coLocRow: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginLeft: 12 },
   badgeTxt: { fontSize: 13, fontWeight: '600' },
   card: { backgroundColor: '#fff', margin: 12, marginBottom: 0, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
