@@ -235,14 +235,19 @@ export default function DocumentsContrat() {
   }
 
   async function supprimerDocument(doc: Document) {
-    Alert.alert('Supprimer', `Supprimer "${doc.nom}" ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
-        if (doc.storage_path) await supabase.storage.from('contrat-docs').remove([doc.storage_path])
-        await supabase.from('contrat_documents').delete().eq('id', doc.id)
-        await fetchAll()
-      }},
-    ])
+    const confirme = Platform.OS === 'web'
+      ? window.confirm(`Supprimer "${doc.nom}" ?`)
+      : await new Promise<boolean>(resolve =>
+          Alert.alert('Supprimer', `Supprimer "${doc.nom}" ?`, [
+            { text: 'Annuler', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Supprimer', style: 'destructive', onPress: () => resolve(true) },
+          ])
+        )
+    if (!confirme) return
+    if (doc.storage_path) await supabase.storage.from('contrat-docs').remove([doc.storage_path])
+    const { error } = await supabase.from('contrat_documents').delete().eq('id', doc.id)
+    if (error) { Alert.alert('Erreur', error.message); return }
+    await fetchAll()
   }
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#2563eb" />
