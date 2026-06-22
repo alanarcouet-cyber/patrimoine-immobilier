@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Modal
+  ScrollView, ActivityIndicator, Modal, Alert
 } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../src/lib/supabase'
+import { useAuth } from '../../../src/contexts/AuthContext'
 
 const ERREURS: Record<string, string> = {
   'duplicate key': 'Un locataire avec cet email existe déjà.',
@@ -54,6 +55,7 @@ function formatDateSaisie(raw: string, prev: string): string {
 export default function NouveauLocataire() {
   const { id } = useLocalSearchParams<{ id?: string }>()
   const isEditing = !!id
+  const { user } = useAuth()
   const [loadingData, setLoadingData] = useState(isEditing)
   const [loading, setLoading] = useState(false)
   const [erreur, setErreur] = useState('')
@@ -67,6 +69,7 @@ export default function NouveauLocataire() {
   const [adresse, setAdresse] = useState('')
 
   const prevDate = useRef('')
+  const scrollRef = useRef<ScrollView>(null)
 
   useEffect(() => { if (isEditing) fetchLocataire() }, [])
 
@@ -91,42 +94,56 @@ export default function NouveauLocataire() {
     setErreur('')
   }
 
+  function afficherErreur(msg: string) {
+    setErreur(msg)
+    // Scroll vers le haut pour que le message soit visible
+    scrollRef.current?.scrollTo({ y: 0, animated: true })
+    // Alert de secours sur mobile pour garantir la visibilité
+    Alert.alert('Erreur', msg)
+  }
+
   async function handleSave() {
     setErreur('')
-    if (!nom.trim()) { setErreur('Le nom est obligatoire.'); return }
-    if (!prenom.trim()) { setErreur('Le prénom est obligatoire.'); return }
-    if (email && !email.includes('@')) { setErreur('Adresse email invalide.'); return }
+    if (!nom.trim()) { afficherErreur('Le nom est obligatoire.'); return }
+    if (!prenom.trim()) { afficherErreur('Le prénom est obligatoire.'); return }
+    if (email && !email.includes('@')) { afficherErreur('Adresse email invalide.'); return }
 
     let dateISO: string | null = null
     if (dateNaissance) {
       dateISO = dateVersISO(dateNaissance)
       if (!dateISO) {
-        setErreur('Date de naissance invalide. Format attendu : JJ/MM/AAAA')
+        afficherErreur('Date de naissance invalide. Format attendu : JJ/MM/AAAA')
         return
       }
     }
 
     setLoading(true)
-    const payload = {
-      nom: nom.trim().toUpperCase(),
-      prenom: prenom.trim(),
-      email: email.trim() || null,
-      telephone: telephone.trim() || null,
-      date_naissance: dateISO,
-      adresse: adresse.trim() || null,
-    }
+    try {
+      const payload = {
+        nom: nom.trim().toUpperCase(),
+        prenom: prenom.trim(),
+        email: email.trim() || null,
+        telephone: telephone.trim() || null,
+        date_naissance: dateISO,
+        adresse: adresse.trim() || null,
+        ...(isEditing ? {} : { profile_id: user?.id }),
+      }
 
-    const { error } = isEditing
-      ? await supabase.from('locataires').update(payload).eq('id', id)
-      : await supabase.from('locataires').insert(payload)
+      const { error } = isEditing
+        ? await supabase.from('locataires').update(payload).eq('id', id)
+        : await supabase.from('locataires').insert(payload)
 
-    setLoading(false)
-    if (error) {
-      setErreur(traduireErreur(error.message))
-    } else if (!isEditing) {
-      setSucces(true)
-    } else {
-      router.back()
+      setLoading(false)
+      if (error) {
+        afficherErreur(traduireErreur(error.message))
+      } else if (!isEditing) {
+        setSucces(true)
+      } else {
+        router.back()
+      }
+    } catch (e: any) {
+      setLoading(false)
+      afficherErreur(e?.message ?? 'Erreur inattendue. Vérifiez votre connexion.')
     }
   }
 
@@ -134,7 +151,7 @@ export default function NouveauLocataire() {
 
   return (
     <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView ref={scrollRef} style={styles.container} contentContainerStyle={styles.content}>
 
         {/* Bouton retour */}
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
