@@ -38,6 +38,19 @@ export default function Biens() {
         data={biens}
         keyExtractor={item => item.id}
         contentContainerStyle={{ padding: 16, gap: 12 }}
+        ListHeaderComponent={
+          <TouchableOpacity
+            style={styles.associerBanner}
+            onPress={() => router.push('/(app)/contrat/associer')}
+          >
+            <Text style={styles.associerIcon}>🔗</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.associerTitle}>Créer un contrat</Text>
+              <Text style={styles.associerSub}>Glissez un locataire sur un bien</Text>
+            </View>
+            <Text style={styles.associerArrow}>›</Text>
+          </TouchableOpacity>
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>Aucun bien enregistré</Text>
@@ -92,6 +105,20 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 80 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#64748b' },
   emptySubtext: { fontSize: 14, color: '#94a3b8', marginTop: 4 },
+  associerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  associerIcon: { fontSize: 24, marginRight: 12 },
+  associerTitle: { fontSize: 14, fontWeight: '700', color: '#1d4ed8' },
+  associerSub: { fontSize: 12, color: '#3b82f6', marginTop: 1 },
+  associerArrow: { fontSize: 22, color: '#93c5fd', fontWeight: '300' },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
     backgroundColor: '#2563eb', width: 56, height: 56,
