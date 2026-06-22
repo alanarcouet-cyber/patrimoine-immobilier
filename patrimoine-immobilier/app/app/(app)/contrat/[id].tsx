@@ -152,6 +152,10 @@ export default function ContratDetail() {
         })}
       </View>
 
+      <TouchableOpacity style={styles.btnDocs} onPress={() => router.push(`/(app)/contrat/documents?id=${id}`)}>
+        <Text style={styles.btnDocsTxt}>📁  Documents & Pièces jointes</Text>
+      </TouchableOpacity>
+
       <View style={styles.actions}>
         <TouchableOpacity style={styles.btnEdit} onPress={() => router.push(`/(app)/contrat/nouveau?id=${id}`)}>
           <Text style={styles.btnEditTxt}>✏️  Modifier</Text>
@@ -191,7 +195,9 @@ const styles = StyleSheet.create({
   loyerStatut: { fontSize: 13, fontWeight: '600', minWidth: 70, textAlign: 'right' },
   payerBtn: { backgroundColor: '#dcfce7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   payerBtnTxt: { color: '#16a34a', fontSize: 12, fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: 10, margin: 12, marginTop: 16 },
+  btnDocs: { backgroundColor: '#1e293b', borderRadius: 10, padding: 14, alignItems: 'center', margin: 12, marginBottom: 0 },
+  btnDocsTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  actions: { flexDirection: 'row', gap: 10, margin: 12, marginTop: 10 },
   btnEdit: { flex: 1, backgroundColor: '#2563eb', borderRadius: 10, padding: 14, alignItems: 'center' },
   btnEditTxt: { color: '#fff', fontWeight: '600', fontSize: 15 },
   btnDelete: { flex: 1, backgroundColor: '#fff', borderRadius: 10, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#fca5a5' },
