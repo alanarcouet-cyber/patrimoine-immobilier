@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../src/lib/supabase'
@@ -9,6 +9,31 @@ const STATUTS = [
   { label: 'Partiel', value: 'partiel' },
   { label: 'Impayé', value: 'impaye' },
 ]
+
+function dateVersISO(dd_mm_yyyy: string): string | null {
+  const c = dd_mm_yyyy.replace(/\D/g, '')
+  if (c.length !== 8) return null
+  const j = c.slice(0, 2), m = c.slice(2, 4), a = c.slice(4, 8)
+  const d = new Date(`${a}-${m}-${j}`)
+  if (isNaN(d.getTime())) return null
+  return `${a}-${m}-${j}`
+}
+
+function dateVersFR(iso: string): string {
+  if (!iso) return ''
+  const [a, m, j] = iso.split('-')
+  return `${j}/${m}/${a}`
+}
+
+function formatDateSaisie(raw: string, prev: string): string {
+  const c = raw.replace(/\D/g, '')
+  if (!c.length) return ''
+  let r = c
+  if (c.length > 2) r = c.slice(0, 2) + '/' + c.slice(2)
+  if (c.length > 4) r = c.slice(0, 2) + '/' + c.slice(2, 4) + '/' + c.slice(4, 8)
+  if (prev.endsWith('/') && raw.length < prev.length) return r.slice(0, -1)
+  return r
+}
 
 export default function NouveauLoyer() {
   const { id } = useLocalSearchParams<{ id?: string }>()
@@ -26,6 +51,7 @@ export default function NouveauLoyer() {
   const [charges, setCharges] = useState('')
   const [statut, setStatut] = useState('en_attente')
   const [datePaiement, setDatePaiement] = useState('')
+  const prevDate = useRef('')
 
   useEffect(() => {
     fetchContrats()
@@ -51,9 +77,15 @@ export default function NouveauLoyer() {
       setMontantHc(data.montant_hc?.toString())
       setCharges(data.charges?.toString())
       setStatut(data.statut)
-      setDatePaiement(data.date_paiement ?? '')
+      setDatePaiement(dateVersFR(data.date_paiement ?? ''))
     }
     setLoadingData(false)
+  }
+
+  function handleDatePaiement(raw: string) {
+    const f = formatDateSaisie(raw, prevDate.current)
+    prevDate.current = f
+    setDatePaiement(f)
   }
 
   async function handleSave() {
@@ -61,11 +93,16 @@ export default function NouveauLoyer() {
       Alert.alert('Erreur', 'Contrat, mois et montant HC sont obligatoires')
       return
     }
+    let datePaiementISO: string | null = null
+    if (datePaiement) {
+      datePaiementISO = dateVersISO(datePaiement)
+      if (!datePaiementISO) { Alert.alert('Erreur', 'Date de paiement invalide (JJ/MM/AAAA)'); return }
+    }
     setLoading(true)
     const payload = {
       contrat_id: contratId, mois,
       montant_hc: parseFloat(montantHc), charges: parseFloat(charges || '0'),
-      statut, date_paiement: datePaiement || null,
+      statut, date_paiement: datePaiementISO,
     }
     const { error } = isEditing
       ? await supabase.from('loyers').update(payload).eq('id', id)
@@ -79,6 +116,11 @@ export default function NouveauLoyer() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+
+      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <Text style={styles.backTxt}>‹  Retour</Text>
+      </TouchableOpacity>
+
       <Text style={styles.section}>Contrat *</Text>
       <View style={styles.selectList}>
         {contrats.map(c => (
@@ -116,7 +158,14 @@ export default function NouveauLoyer() {
       {(statut === 'paye' || statut === 'partiel') && (
         <>
           <Text style={styles.label}>Date de paiement</Text>
-          <TextInput style={styles.input} value={datePaiement} onChangeText={setDatePaiement} placeholder="AAAA-MM-JJ" />
+          <TextInput
+            style={styles.input}
+            value={datePaiement}
+            onChangeText={handleDatePaiement}
+            placeholder="JJ/MM/AAAA"
+            keyboardType="numeric"
+            maxLength={10}
+          />
         </>
       )}
 
@@ -130,6 +179,8 @@ export default function NouveauLoyer() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   content: { padding: 16, paddingBottom: 40 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  backTxt: { fontSize: 16, color: '#2563eb', fontWeight: '500' },
   section: { fontSize: 13, fontWeight: '700', color: '#2563eb', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 20, marginBottom: 10 },
   label: { fontSize: 13, color: '#64748b', marginBottom: 4, marginTop: 8 },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, padding: 12, fontSize: 15, color: '#1e293b' },

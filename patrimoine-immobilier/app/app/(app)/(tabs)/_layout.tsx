@@ -11,10 +11,17 @@ export default function TabsLayout() {
       headerTitleStyle: { fontWeight: 'bold' },
     }}>
       <Tabs.Screen
+        name="accueil"
+        options={{
+          title: 'Accueil',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏠</Text>,
+        }}
+      />
+      <Tabs.Screen
         name="biens"
         options={{
           title: 'Biens',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏠</Text>,
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🏢</Text>,
         }}
       />
       <Tabs.Screen

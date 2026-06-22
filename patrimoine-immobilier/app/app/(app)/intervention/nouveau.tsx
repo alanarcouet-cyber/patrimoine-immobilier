@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native'
 import { router, useLocalSearchParams } from 'expo-router'
 import { supabase } from '../../../src/lib/supabase'
@@ -18,6 +18,31 @@ const STATUTS: { label: string; value: StatutIntervention }[] = [
   { label: 'Annulé', value: 'annule' },
 ]
 
+function dateVersISO(dd_mm_yyyy: string): string | null {
+  const c = dd_mm_yyyy.replace(/\D/g, '')
+  if (c.length !== 8) return null
+  const j = c.slice(0, 2), m = c.slice(2, 4), a = c.slice(4, 8)
+  const d = new Date(`${a}-${m}-${j}`)
+  if (isNaN(d.getTime())) return null
+  return `${a}-${m}-${j}`
+}
+
+function dateVersFR(iso: string): string {
+  if (!iso) return ''
+  const [a, m, j] = iso.split('-')
+  return `${j}/${m}/${a}`
+}
+
+function formatDateSaisie(raw: string, prev: string): string {
+  const c = raw.replace(/\D/g, '')
+  if (!c.length) return ''
+  let r = c
+  if (c.length > 2) r = c.slice(0, 2) + '/' + c.slice(2)
+  if (c.length > 4) r = c.slice(0, 2) + '/' + c.slice(2, 4) + '/' + c.slice(4, 8)
+  if (prev.endsWith('/') && raw.length < prev.length) return r.slice(0, -1)
+  return r
+}
+
 export default function NouvelleIntervention() {
   const { id, bien_id: bienIdParam } = useLocalSearchParams<{ id?: string; bien_id?: string }>()
   const isEditing = !!id
@@ -35,6 +60,8 @@ export default function NouvelleIntervention() {
   const [datePlanifiee, setDatePlanifiee] = useState('')
   const [dateRealisee, setDateRealisee] = useState('')
   const [cout, setCout] = useState('')
+  const prevPlanifiee = useRef('')
+  const prevRealisee = useRef('')
 
   useEffect(() => {
     fetchBiens()
@@ -55,11 +82,23 @@ export default function NouvelleIntervention() {
       setTitre(data.titre)
       setDescription(data.description ?? '')
       setPrestataire(data.prestataire ?? '')
-      setDatePlanifiee(data.date_planifiee ?? '')
-      setDateRealisee(data.date_realisee ?? '')
+      setDatePlanifiee(dateVersFR(data.date_planifiee ?? ''))
+      setDateRealisee(dateVersFR(data.date_realisee ?? ''))
       setCout(data.cout?.toString() ?? '')
     }
     setLoadingData(false)
+  }
+
+  function handlePlanifieeChange(raw: string) {
+    const f = formatDateSaisie(raw, prevPlanifiee.current)
+    prevPlanifiee.current = f
+    setDatePlanifiee(f)
+  }
+
+  function handleRealiseeChange(raw: string) {
+    const f = formatDateSaisie(raw, prevRealisee.current)
+    prevRealisee.current = f
+    setDateRealisee(f)
   }
 
   async function handleSave() {
@@ -67,13 +106,18 @@ export default function NouvelleIntervention() {
       Alert.alert('Erreur', 'Le titre et le bien sont obligatoires')
       return
     }
+    const planISO = datePlanifiee ? dateVersISO(datePlanifiee) : null
+    if (datePlanifiee && !planISO) { Alert.alert('Erreur', 'Date planifiée invalide (JJ/MM/AAAA)'); return }
+    const realISO = dateRealisee ? dateVersISO(dateRealisee) : null
+    if (dateRealisee && !realISO) { Alert.alert('Erreur', 'Date réalisée invalide (JJ/MM/AAAA)'); return }
+
     setLoading(true)
     const payload = {
       bien_id: bienId, type, statut, titre,
       description: description || null,
       prestataire: prestataire || null,
-      date_planifiee: datePlanifiee || null,
-      date_realisee: dateRealisee || null,
+      date_planifiee: planISO,
+      date_realisee: realISO,
       cout: cout ? parseFloat(cout) : null,
     }
     const { error } = isEditing
@@ -138,11 +182,11 @@ export default function NouvelleIntervention() {
       <View style={styles.row}>
         <View style={styles.flex1}>
           <Text style={styles.label}>Date planifiée</Text>
-          <TextInput style={styles.input} value={datePlanifiee} onChangeText={setDatePlanifiee} placeholder="AAAA-MM-JJ" />
+          <TextInput style={styles.input} value={datePlanifiee} onChangeText={handlePlanifieeChange} placeholder="JJ/MM/AAAA" keyboardType="numeric" maxLength={10} />
         </View>
         <View style={[styles.flex1, { marginLeft: 8 }]}>
           <Text style={styles.label}>Date réalisée</Text>
-          <TextInput style={styles.input} value={dateRealisee} onChangeText={setDateRealisee} placeholder="AAAA-MM-JJ" />
+          <TextInput style={styles.input} value={dateRealisee} onChangeText={handleRealiseeChange} placeholder="JJ/MM/AAAA" keyboardType="numeric" maxLength={10} />
         </View>
       </View>
 

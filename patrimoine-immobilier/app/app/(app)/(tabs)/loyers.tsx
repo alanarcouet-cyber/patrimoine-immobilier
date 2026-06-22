@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { supabase } from '../../../src/lib/supabase'
 
@@ -36,7 +36,56 @@ export default function Loyers() {
   const [refreshing, setRefreshing] = useState(false)
   const [filtre, setFiltre] = useState<'tous' | 'en_attente' | 'impaye' | 'paye'>('tous')
 
+  const [generating, setGenerating] = useState(false)
+
   useFocusEffect(useCallback(() => { fetchLoyers() }, []))
+
+  async function genererTousLoyers() {
+    const mois = new Date()
+    const moisStr = `${mois.getFullYear()}-${String(mois.getMonth() + 1).padStart(2, '0')}`
+
+    Alert.alert(
+      'Générer les loyers',
+      `Créer les appels de loyer de ${MOIS_FR[mois.getMonth()]} ${mois.getFullYear()} pour tous les contrats actifs ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Générer', onPress: async () => {
+          setGenerating(true)
+          const { data: contrats } = await supabase
+            .from('contrats')
+            .select('id, loyer_hc, charges')
+            .eq('statut', 'actif')
+          if (!contrats?.length) { Alert.alert('Info', 'Aucun contrat actif trouvé'); setGenerating(false); return }
+
+          const { data: existants } = await supabase
+            .from('loyers')
+            .select('contrat_id')
+            .eq('mois', moisStr)
+          const existantsIds = new Set(existants?.map(l => l.contrat_id) ?? [])
+          const nouveaux = contrats.filter(c => !existantsIds.has(c.id))
+
+          if (!nouveaux.length) {
+            Alert.alert('Info', 'Tous les loyers de ce mois sont déjà générés')
+            setGenerating(false)
+            return
+          }
+
+          const { error } = await supabase.from('loyers').insert(
+            nouveaux.map(c => ({
+              contrat_id: c.id,
+              mois: moisStr,
+              montant_hc: c.loyer_hc,
+              charges: c.charges ?? 0,
+              statut: 'en_attente',
+            }))
+          )
+          setGenerating(false)
+          if (error) Alert.alert('Erreur', error.message)
+          else { Alert.alert('Succès', `${nouveaux.length} loyer(s) générés`); fetchLoyers() }
+        }},
+      ]
+    )
+  }
 
   async function fetchLoyers() {
     const { data } = await supabase
@@ -63,6 +112,13 @@ export default function Loyers() {
           <Text style={styles.alertText}>⚠️  {totalAttente.toFixed(0)} € en attente de paiement</Text>
         </View>
       )}
+
+      {/* Génération en masse */}
+      <TouchableOpacity style={styles.genBtn} onPress={genererTousLoyers} disabled={generating}>
+        <Text style={styles.genBtnTxt}>
+          {generating ? 'Génération…' : '⚡ Générer les loyers du mois'}
+        </Text>
+      </TouchableOpacity>
 
       {/* Filtres */}
       <View style={styles.filtres}>
@@ -144,6 +200,8 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 32 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#64748b' },
   emptySub: { fontSize: 14, color: '#94a3b8', marginTop: 6, textAlign: 'center' },
+  genBtn: { backgroundColor: '#2563eb', marginHorizontal: 12, marginBottom: 4, borderRadius: 10, padding: 12, alignItems: 'center' },
+  genBtnTxt: { color: '#fff', fontWeight: '700', fontSize: 14 },
   fab: { position: 'absolute', bottom: 24, right: 24, backgroundColor: '#2563eb', width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', shadowColor: '#2563eb', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
   fabText: { color: '#fff', fontSize: 28, fontWeight: '300' },
 })
