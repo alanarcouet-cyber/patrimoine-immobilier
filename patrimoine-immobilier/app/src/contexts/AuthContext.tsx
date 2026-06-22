@@ -57,7 +57,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .select('*')
       .eq('id', userId)
       .maybeSingle()
-    setMembre(data ?? null)
+
+    if (data) {
+      setMembre(data)
+    } else {
+      // L'entrée est manquante (ex : email non confirmé lors du signUp).
+      // On la crée automatiquement avec le rôle admin.
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: inserted } = await supabase
+          .from('patrimoine_membres')
+          .insert({
+            id: userId,
+            invited_by: userId,
+            role: 'admin',
+            nom: (user.user_metadata?.nom ?? '').toUpperCase() || 'UTILISATEUR',
+            prenom: user.user_metadata?.prenom ?? '',
+            email: user.email ?? '',
+          })
+          .select()
+          .single()
+        setMembre(inserted ?? null)
+      } else {
+        setMembre(null)
+      }
+    }
     setLoading(false)
   }
 
