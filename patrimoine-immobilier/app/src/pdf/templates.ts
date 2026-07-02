@@ -534,3 +534,96 @@ export function imprimerDocument(html: string) {
   win.document.write(html)
   win.document.close()
 }
+
+// ─── Export DOCX (HTML → Word) ───────────────────────────────────────────────
+// Le navigateur ouvre en Word/LibreOffice — format entièrement éditable.
+
+export function telechargerDocx(html: string, nomFichier: string) {
+  // Extraire le body de la page HTML générée (sans le script onload=print)
+  const bodyMatch = html.match(/<body[^>]*onload="[^"]*">([\s\S]*)<\/body>/)
+  const body = bodyMatch ? bodyMatch[1] : html
+
+  const wordHtml = `
+    <html xmlns:o='urn:schemas-microsoft-com:office:office'
+          xmlns:w='urn:schemas-microsoft-com:office:word'
+          xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset="utf-8">
+      <style>
+        ${CSS_BASE_DOCX}
+      </style>
+      <!--[if gte mso 9]>
+      <xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml>
+      <![endif]-->
+    </head>
+    <body>${body}</body>
+    </html>`
+
+  const blob = new Blob(['﻿', wordHtml], {
+    type: 'application/vnd.ms-word;charset=utf-8',
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nomFichier.replace(/[^a-zA-Z0-9_\-\s]/g, '') + '.doc'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+const CSS_BASE_DOCX = `
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; color: #111; line-height: 1.5; margin: 2cm; }
+  h1 { font-size: 15pt; text-align: center; text-transform: uppercase; }
+  h2 { font-size: 12pt; text-decoration: underline; margin-top: 14pt; }
+  h3 { font-size: 11pt; margin-top: 10pt; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { border: 1px solid #999; padding: 4pt 6pt; font-size: 10pt; }
+  th { background: #e8e8e8; font-weight: bold; }
+  ul { margin: 4pt 0; padding-left: 14pt; }
+  li { margin-bottom: 2pt; }
+  .signature-zone { display: flex; justify-content: space-between; margin-top: 40pt; }
+  .signature-box { width: 45%; border-top: 1pt solid #333; padding-top: 6pt; font-size: 9pt; }
+`
+
+// ─── PDF signé : injecte les signatures dans le HTML ─────────────────────────
+
+export type SignatureInfo = {
+  role: 'bailleur' | 'locataire'
+  nom: string
+  prenom: string
+  signature_data: string
+  signed_at: string
+}
+
+export function htmlAvecSignatures(htmlOriginal: string, signatures: SignatureInfo[]): string {
+  if (!signatures.length) return htmlOriginal
+
+  const blocSignatures = `
+    <div style="page-break-inside:avoid; margin-top:30px; border-top:2px solid #1a3a6e; padding-top:16px;">
+      <h2 style="font-size:13pt; margin-bottom:16px;">Signatures électroniques</h2>
+      <div style="display:flex; flex-wrap:wrap; gap:24px;">
+        ${signatures.map(s => `
+          <div style="border:1px solid #e2e8f0; border-radius:8px; padding:14px; min-width:220px;">
+            <div style="font-size:10pt; color:#64748b; text-transform:uppercase; font-weight:bold; margin-bottom:4px;">
+              ${s.role === 'bailleur' ? 'Bailleur' : 'Locataire'}
+            </div>
+            <div style="font-size:12pt; font-weight:bold; margin-bottom:8px;">
+              ${s.prenom} ${s.nom.toUpperCase()}
+            </div>
+            <img src="${s.signature_data}" style="max-width:200px; max-height:80px; border:1px solid #e2e8f0; display:block; margin-bottom:6px;">
+            <div style="font-size:9pt; color:#64748b;">
+              Signé le ${new Date(s.signed_at).toLocaleDateString('fr-FR', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <p style="font-size:8.5pt; color:#64748b; margin-top:14px;">
+        Signatures électroniques conformes au Règlement UE n°910/2014 (eIDAS).
+      </p>
+    </div>
+  `
+
+  // Insérer avant </body>
+  return htmlOriginal.replace('</body>', blocSignatures + '</body>')
+}
