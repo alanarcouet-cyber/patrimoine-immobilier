@@ -51,11 +51,14 @@ export default function Login() {
       return
     }
     setResetLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(emailReset)
+    const redirectTo = typeof window !== 'undefined'
+      ? `${window.location.origin}/reset-password`
+      : 'http://localhost:8082/reset-password'
+    const { error } = await supabase.auth.resetPasswordForEmail(emailReset, { redirectTo })
     if (error) {
       setResetMessage(traduireErreur(error.message))
     } else {
-      setResetMessage('Un email de réinitialisation a été envoyé. Vérifiez votre boîte mail.')
+      setResetMessage('✅ Un email de réinitialisation a été envoyé. Vérifiez votre boîte mail.')
     }
     setResetLoading(false)
   }
